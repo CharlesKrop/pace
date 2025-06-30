@@ -568,17 +568,19 @@ class Driver:
         # TODO: There should be a flag in the configuration to enable AI physics models
         # in the physics config file.  Right now, we have a model for the soil moisture,
         # but we can add more models in the future.
-        self._use_tf_SM = False
+        self._use_tf_SM = True
         if self._use_tf_SM:
             ndsl_log.info("Loading TensorFlow Soil Moisture model")
-            self.tf_sm_model = tf.keras.models.load_model(
-                "./tf_LSM/sm_model"
-            )
+            # *** Commenting model for the time being to save space ***
+            # self.tf_sm_model = tf.keras.models.load_model(
+            #     "./tf_LSM/sm_model"
+            # )
 
             # For now, we will let the model run for 10 steps and then feed data into the 
             # TF model.
-            self._tf_sm_update_freq = 10
+            self._tf_sm_update_freq = 4
 
+            # This .nc file contains the normalization statistics for the soil moisture model
             self._tf_sm_normalizer = xr.open_dataset(
                 "./tf_LSM/utils/stats.nc")
 
@@ -683,15 +685,49 @@ class Driver:
             self._end_of_step_actions(step)
 
             if self._use_tf_SM and step != 0 and (step+1) % self._tf_sm_update_freq == 0:
-                ndsl_log.info("Running TensorFlow Soil Moisture model")
-                # Get the state data to predict soil moisture
-                # sm_data = self.state.data_for_soil_moisture_prediction()
+                # Copy dycore state variables into a dictionary. Deep copy is performed if
+                # variable is a Quantity, otherwise a shallow copy is performed.
+                dycore_state_dict = {
+                    field.name: getattr(self.state.dycore_state, field.name).data.copy()
+                    if type(getattr(self.state.dycore_state, field.name)) is not float
+                    else getattr(self.state.dycore_state, field.name)
+                    for field in dataclasses.fields(self.state.dycore_state)
+                }
+
+                # Do some sort of remapping of the dycore state variables names to the ones used in the TensorFlow model
+                # Below are the forcing attributes names that are used in the TensorFlow model
+                """
+                forcing_attributes=['cape','cp','cvh','cvl','fal','lai_hv','lai_lv','msdwlwrf','msdwswrf',
+                    'pev','skt','sp','ssr','ssrd','str','strd','stl1','stl2','stl3',
+                    'stl4','t2m','d2m','tp','u10','v10','z','swvl1','slhf','e','csfr',
+                    'es','smlt','sd']
+
+                key_mapping = {'u': 'u10',
+                               'v': 'v10',
+                               ...
+                               }
+
+                remap_dycore_state = {
+                    key_mapping.get(k,k): v 
+                    for k, v in dycore_state_dict.items()
+                }                               
+                """
+
                 # Normalize the data
-                # sm_data_normalized = normalizer(sm_data,self._tf_sm_normalizer)
+                # sm_data_normalized = normalizer(remap_dycore_state, self._tf_sm_normalizer)
+        
+
+                ndsl_log.info("Running TensorFlow Soil Moisture model")
+                """
                 # Run the TensorFlow model
-                # sm_predictions = self.tf_sm_model.predict_on_batch(sm_data_normalized)
-                # Update the soil moisture in the state with predictions
-                # self.update_soil_moisture(sm_predictions)
+                sm_predictions = self.tf_sm_model.predict_on_batch(sm_data_normalized)
+                """
+
+                # Reverse normalization?
+                # self.denormalize(sm_predictions)
+
+                # Write SM prediction back into the state object                
+
 
     def step_all(self):
         ndsl_log.info("integrating driver forward in time")
