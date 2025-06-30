@@ -9,6 +9,9 @@ import dace
 import dacite
 import yaml
 
+import tensorflow as tf
+import xarray as xr
+
 from ndsl import (
     CompilationConfig,
     CubedSphereCommunicator,
@@ -40,6 +43,8 @@ from pace.state import DriverState
 from pyFV3 import DynamicalCore, DynamicalCoreConfig
 from pySHiELD import Physics, PhysicsConfig
 from pySHiELD.update import update_atmos_state
+
+from tf_LSM.utils import normalizer
 
 
 try:
@@ -558,6 +563,25 @@ class Driver:
         ndsl_log.info("setting up safety checkers done")
         ndsl_log.info("initialization of the object done")
 
+        # Loading TensorFlow Soil Moisture model if configuration is set
+        # Right now assume by default that TensorFlow Soil Moisture model is not used for physics
+        # TODO: There should be a flag in the configuration to enable AI physics models
+        # in the physics config file.  Right now, we have a model for the soil moisture,
+        # but we can add more models in the future.
+        self._use_tf_SM = False
+        if self._use_tf_SM:
+            ndsl_log.info("Loading TensorFlow Soil Moisture model")
+            self.tf_sm_model = tf.keras.models.load_model(
+                "./tf_LSM/sm_model"
+            )
+
+            # For now, we will let the model run for 10 steps and then feed data into the 
+            # TF model.
+            self._tf_sm_update_freq = 10
+
+            self._tf_sm_normalizer = xr.open_dataset(
+                "./tf_LSM/utils/stats.nc")
+
     def _update_driver_config_with_communicator(
         self, communicator: Communicator
     ) -> None:
@@ -657,6 +681,17 @@ class Driver:
                         dt=dt,
                     )
             self._end_of_step_actions(step)
+
+            if self._use_tf_SM and step != 0 and (step+1) % self._tf_sm_update_freq == 0:
+                ndsl_log.info("Running TensorFlow Soil Moisture model")
+                # Get the state data to predict soil moisture
+                # sm_data = self.state.data_for_soil_moisture_prediction()
+                # Normalize the data
+                # sm_data_normalized = normalizer(sm_data,self._tf_sm_normalizer)
+                # Run the TensorFlow model
+                # sm_predictions = self.tf_sm_model.predict_on_batch(sm_data_normalized)
+                # Update the soil moisture in the state with predictions
+                # self.update_soil_moisture(sm_predictions)
 
     def step_all(self):
         ndsl_log.info("integrating driver forward in time")
