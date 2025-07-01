@@ -28,7 +28,7 @@ from ndsl import (
     ndsl_log,
 )
 from ndsl.comm import Comm
-from ndsl.constants import N_HALO_DEFAULT
+from ndsl.constants import N_HALO_DEFAULT, X_DIM, Y_DIM, Z_DIM
 from ndsl.dsl.dace.orchestration import dace_inhibitor, orchestrate
 from ndsl.dsl.typing import Float
 from ndsl.grid import DampingCoefficients, DriverGridData, GridData
@@ -44,6 +44,7 @@ from pyFV3 import DynamicalCore, DynamicalCoreConfig
 from pySHiELD import Physics, PhysicsConfig
 from pySHiELD.update import update_atmos_state
 
+from ndsl.stencils.c2l_ord import CubedToLatLon
 from tf_LSM.utils import normalizer
 
 
@@ -583,6 +584,25 @@ class Driver:
             # This .nc file contains the normalization statistics for the soil moisture model
             self._tf_sm_normalizer = xr.open_dataset(
                 "./tf_LSM/utils/stats.nc")
+            self._dycore_state_dict = None
+
+            # Note that fv_dynamics.py laid out a CubedToLatLong function that converts U/V wind values from
+            # cubed sphere state to lat-lon
+            # We can access it via self.dycore._cubed_to_latlon
+
+            # We need to create temporary quantities to hold the converted U/W wind values
+            self._temp_ua = self.quantity_factory.zeros(
+                dims=[X_DIM, Y_DIM, Z_DIM],
+                units="",
+                dtype=Float,
+            )
+            self._temp_va = self.quantity_factory.zeros(
+                dims=[X_DIM, Y_DIM, Z_DIM],
+                units="",
+                dtype=Float,
+            )
+            
+            
 
     def _update_driver_config_with_communicator(
         self, communicator: Communicator
@@ -682,17 +702,49 @@ class Driver:
                         pt_dt=self.state.tendency_state.pt_dt,
                         dt=dt,
                     )
+
+                # Start recording data for the TensorFlow Soil Moisture model
+                if self._use_tf_SM:
+                    if self._dycore_state_dict == None:
+                        # Copy dycore state variables into a dictionary. Deep copy is performed if
+                        # variable is a Quantity, otherwise a scalar copy is performed.
+                        self._dycore_state_dict = {
+                            field.name: [getattr(self.state.dycore_state, field.name).data.copy()]
+                            if type(getattr(self.state.dycore_state, field.name)) is not float
+                            else getattr(self.state.dycore_state, field.name)
+                            for field in dataclasses.fields(self.state.dycore_state)
+                        }
+                    # If the dycore state dictionary is already created, we can add to it
+                    else:
+                        for field in dataclasses.fields(self.state.dycore_state):
+                            if type(getattr(self.state.dycore_state, field.name)) is not float:
+                                self._dycore_state_dict[field.name].append(getattr(
+                                    self.state.dycore_state, field.name
+                                ).data.copy())
+                            # For now I think the scalars do not need to be updated
+                            # else:
+                            #     dycore_state_dict[field.name] = getattr(
+                            #         self.state.dycore_state, field.name
+                            #     )
             self._end_of_step_actions(step)
 
             if self._use_tf_SM and step != 0 and (step+1) % self._tf_sm_update_freq == 0:
-                # Copy dycore state variables into a dictionary. Deep copy is performed if
-                # variable is a Quantity, otherwise a shallow copy is performed.
-                dycore_state_dict = {
-                    field.name: getattr(self.state.dycore_state, field.name).data.copy()
-                    if type(getattr(self.state.dycore_state, field.name)) is not float
-                    else getattr(self.state.dycore_state, field.name)
-                    for field in dataclasses.fields(self.state.dycore_state)
-                }
+                # There may be a conversion needed to go from Cubed sphere to Lat-Lon for U/V wind components
+                # See self._cubed_to_latlon from fv_dynamics.py
+                # Note: Not sure yet how to get the actual latitude and longitude values
+                # Note : U and V winds from cubed grid that are passed into _cubed_to_latlon
+                #        may have to be quantities(?)
+                for step in range(len(self._dycore_state_dict['u'])):
+                    self.dycore._cubed_to_latlon(
+                        self._dycore_state_dict['u'][step],
+                        self._dycore_state_dict['v'][step],
+                        self._temp_ua,
+                        self._temp_va,
+                    )
+
+                    self._dycore_state_dict['u'][step] = self._temp_ua.data.copy()
+                    self._dycore_state_dict['v'][step] = self._temp_va.data.copy()
+                    
 
                 # Do some sort of remapping of the dycore state variables names to the ones used in the TensorFlow model
                 # Below are the forcing attributes names that are used in the TensorFlow model
@@ -716,7 +768,6 @@ class Driver:
                 # Normalize the data
                 # sm_data_normalized = normalizer(remap_dycore_state, self._tf_sm_normalizer)
         
-
                 ndsl_log.info("Running TensorFlow Soil Moisture model")
                 """
                 # Run the TensorFlow model
