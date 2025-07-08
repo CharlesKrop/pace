@@ -104,22 +104,12 @@ class DriverConfig:
     dt_atmos: float
     grid_type: Optional[int] = 0
     grid_config: GridInitializerSelector = dataclasses.field(
-        default_factory=lambda: GridInitializerSelector(
-            type="generated", config=GeneratedGridConfig()
-        )
+        default_factory=lambda: GridInitializerSelector(type="generated", config=GeneratedGridConfig())
     )
-    diagnostics_config: DiagnosticsConfig = dataclasses.field(
-        default_factory=DiagnosticsConfig
-    )
-    performance_config: PerformanceConfig = dataclasses.field(
-        default_factory=PerformanceConfig
-    )
-    comm_config: CreatesCommSelector = dataclasses.field(
-        default_factory=CreatesCommSelector
-    )
-    dycore_config: DynamicalCoreConfig = dataclasses.field(
-        default_factory=DynamicalCoreConfig
-    )
+    diagnostics_config: DiagnosticsConfig = dataclasses.field(default_factory=DiagnosticsConfig)
+    performance_config: PerformanceConfig = dataclasses.field(default_factory=PerformanceConfig)
+    comm_config: CreatesCommSelector = dataclasses.field(default_factory=CreatesCommSelector)
+    dycore_config: DynamicalCoreConfig = dataclasses.field(default_factory=DynamicalCoreConfig)
     physics_config: PhysicsConfig = dataclasses.field(default_factory=PhysicsConfig)
 
     days: int = 0
@@ -128,9 +118,7 @@ class DriverConfig:
     seconds: int = 0
     dycore_only: bool = False
     disable_step_physics: bool = False
-    restart_config: "RestartConfig" = dataclasses.field(
-        default_factory=lambda: RestartConfig()
-    )
+    restart_config: "RestartConfig" = dataclasses.field(default_factory=lambda: RestartConfig())
     pair_debug: bool = False
     output_initial_state: bool = False
     output_frequency: int = 1
@@ -146,9 +134,7 @@ class DriverConfig:
 
     @functools.cached_property
     def total_time(self) -> timedelta:
-        return timedelta(
-            days=self.days, hours=self.hours, minutes=self.minutes, seconds=self.seconds
-        )
+        return timedelta(days=self.days, hours=self.hours, minutes=self.minutes, seconds=self.seconds)
 
     def n_timesteps(self) -> int:
         """Computing how many timestep required to carry the simulation."""
@@ -218,12 +204,8 @@ class DriverConfig:
                     sizer, backend=self.stencil_config.compilation_config.backend
                 )
             if stencil_factory is None:
-                grid_indexing = GridIndexing.from_sizer_and_communicator(
-                    sizer=sizer, comm=communicator
-                )
-                stencil_factory = StencilFactory(
-                    config=self.stencil_config, grid_indexing=grid_indexing
-                )
+                grid_indexing = GridIndexing.from_sizer_and_communicator(sizer=sizer, comm=communicator)
+                stencil_factory = StencilFactory(config=self.stencil_config, grid_indexing=grid_indexing)
 
         return self.initialization.get_driver_state(
             quantity_factory=quantity_factory,
@@ -269,16 +251,10 @@ class DriverConfig:
         kwargs["physics_config"].npx = kwargs["nx_tile"] + 1
         kwargs["physics_config"].npy = kwargs["nx_tile"] + 1
         kwargs["physics_config"].npz = kwargs["nz"]
-        kwargs["comm_config"] = CreatesCommSelector.from_dict(
-            kwargs.get("comm_config", {})
-        )
-        kwargs["initialization"] = InitializerSelector.from_dict(
-            kwargs["initialization"]
-        )
+        kwargs["comm_config"] = CreatesCommSelector.from_dict(kwargs.get("comm_config", {}))
+        kwargs["initialization"] = InitializerSelector.from_dict(kwargs["initialization"])
         if "grid_config" in kwargs:
-            kwargs["grid_config"] = GridInitializerSelector.from_dict(
-                kwargs["grid_config"]
-            )
+            kwargs["grid_config"] = GridInitializerSelector.from_dict(kwargs["grid_config"])
             grid_type = kwargs["grid_config"].config.grid_type
             # Copy grid_type to the DycoreConfig if it's not the default value
             if grid_type != 0:
@@ -286,10 +262,7 @@ class DriverConfig:
                 if grid_type > 3:
                     kwargs["dycore_config"].ntiles = 1
 
-        if (
-            isinstance(kwargs["stencil_config"], dict)
-            and "dace_config" in kwargs["stencil_config"].keys()
-        ):
+        if isinstance(kwargs["stencil_config"], dict) and "dace_config" in kwargs["stencil_config"].keys():
             kwargs["stencil_config"]["dace_config"] = DaceConfig.from_dict(
                 data=kwargs["stencil_config"]["dace_config"]
             )
@@ -297,15 +270,11 @@ class DriverConfig:
             isinstance(kwargs["stencil_config"], dict)
             and "compilation_config" in kwargs["stencil_config"].keys()
         ):
-            kwargs["stencil_config"][
-                "compilation_config"
-            ] = CompilationConfig.from_dict(
+            kwargs["stencil_config"]["compilation_config"] = CompilationConfig.from_dict(
                 data=kwargs["stencil_config"]["compilation_config"]
             )
 
-        return dacite.from_dict(
-            data_class=cls, data=kwargs, config=dacite.Config(strict=True)
-        )
+        return dacite.from_dict(data_class=cls, data=kwargs, config=dacite.Config(strict=True))
 
     def write_for_restart(
         self,
@@ -314,12 +283,8 @@ class DriverConfig:
     ):
         config_dict = dataclasses.asdict(self)
         if self.stencil_config.dace_config:
-            config_dict["stencil_config"][
-                "dace_config"
-            ] = self.stencil_config.dace_config.as_dict()
-        config_dict["stencil_config"][
-            "compilation_config"
-        ] = self.stencil_config.compilation_config.as_dict()
+            config_dict["stencil_config"]["dace_config"] = self.stencil_config.dace_config.as_dict()
+        config_dict["stencil_config"]["compilation_config"] = self.stencil_config.compilation_config.as_dict()
         # TODO: these attributes are popped because they're defined in the
         # top-level DriverConfig, if we refactor DycoreConfig and PhysicsConfig
         # so they don't have these attributes and pass them separately then we
@@ -436,22 +401,16 @@ class Driver:
             if self.config.stencil_config.compilation_config.run_mode == RunMode.Build:
 
                 def exit_function(*args, **kwargs):
-                    print(
-                        "Running in build-only mode and compilation finished, exiting"
-                    )
+                    print("Running in build-only mode and compilation finished, exiting")
                     exit(0)
 
                 setattr(self, "step_all", exit_function)
             elif self.config.stencil_config.compilation_config.run_mode == RunMode.Run:
 
                 def exit_instead_of_build(self):
-                    stencil_class = (
-                        None if self.options.rebuild else self.backend.load()
-                    )
+                    stencil_class = None if self.options.rebuild else self.backend.load()
                     if stencil_class is None:
-                        raise RuntimeError(
-                            "Stencil needs to be compiled first in run mode, exiting"
-                        )
+                        raise RuntimeError("Stencil needs to be compiled first in run mode, exiting")
                     return stencil_class
 
                 from gt4py.stencil_builder import StencilBuilder
@@ -477,7 +436,11 @@ class Driver:
                 stencil_compare_comm=stencil_compare_comm,
             )
             ndsl_log.info("setting up grid started")
-            (damping_coefficients, driver_grid_data, grid_data,) = self.config.get_grid(
+            (
+                damping_coefficients,
+                driver_grid_data,
+                grid_data,
+            ) = self.config.get_grid(
                 quantity_factory=self.quantity_factory,
                 communicator=communicator,
             )
@@ -544,13 +507,9 @@ class Driver:
                 self.end_of_step_update = None
             ndsl_log.info("setting up physics object done")
             ndsl_log.info("setting up diagnostics factory started")
-            self.diagnostics = config.diagnostics_config.diagnostics_factory(
-                communicator=communicator
-            )
+            self.diagnostics = config.diagnostics_config.diagnostics_factory(communicator=communicator)
             ndsl_log.info("setting up diagnostics factory done")
-        log_subtile_location(
-            partitioner=communicator.partitioner.tile, rank=communicator.rank
-        )
+        log_subtile_location(partitioner=communicator.partitioner.tile, rank=communicator.rank)
         if config.output_initial_state:
             self.diagnostics.store(time=self.time, state=self.state)
 
@@ -577,13 +536,12 @@ class Driver:
             #     "./tf_LSM/sm_model"
             # )
 
-            # For now, we will let the model run for 10 steps and then feed data into the 
+            # For now, we will let the model run for 10 steps and then feed data into the
             # TF model.
             self._tf_sm_update_freq = 4
 
             # This .nc file contains the normalization statistics for the soil moisture model
-            self._tf_sm_normalizer = xr.open_dataset(
-                "./tf_LSM/utils/stats.nc")
+            self._tf_sm_normalizer = xr.open_dataset("./tf_LSM/utils/stats.nc")
             self._dycore_state_dict = None
 
             # Note that fv_dynamics.py laid out a CubedToLatLong function that converts U/V wind values from
@@ -601,12 +559,8 @@ class Driver:
                 units="",
                 dtype=Float,
             )
-            
-            
 
-    def _update_driver_config_with_communicator(
-        self, communicator: Communicator
-    ) -> None:
+    def _update_driver_config_with_communicator(self, communicator: Communicator) -> None:
         dace_config = DaceConfig(
             communicator=communicator,
             backend=self.config.stencil_config.compilation_config.backend,
@@ -652,10 +606,7 @@ class Driver:
             )
             self.diagnostics.store(time=self.time, state=self.state)
             ndsl_log.info(f"diagnostics for step {self.time} finished")
-        if (
-            self.config.safety_check_frequency
-            and ((step + 1) % self.config.safety_check_frequency) == 0
-        ):
+        if self.config.safety_check_frequency and ((step + 1) % self.config.safety_check_frequency) == 0:
             self.safety_checker.check_state(self.state.dycore_state)
             ndsl_log.info(f"checking state for for step {step+1} finished")
         self.config.restart_config.write_intermediate_if_enabled(
@@ -709,18 +660,20 @@ class Driver:
                         # Copy dycore state variables into a dictionary. Deep copy is performed if
                         # variable is a Quantity, otherwise a scalar copy is performed.
                         self._dycore_state_dict = {
-                            field.name: [getattr(self.state.dycore_state, field.name).data.copy()]
-                            if type(getattr(self.state.dycore_state, field.name)) is not float
-                            else getattr(self.state.dycore_state, field.name)
+                            field.name: (
+                                [getattr(self.state.dycore_state, field.name).data.copy()]
+                                if type(getattr(self.state.dycore_state, field.name)) is not float
+                                else getattr(self.state.dycore_state, field.name)
+                            )
                             for field in dataclasses.fields(self.state.dycore_state)
                         }
                     # If the dycore state dictionary is already created, we can add to it
                     else:
                         for field in dataclasses.fields(self.state.dycore_state):
                             if type(getattr(self.state.dycore_state, field.name)) is not float:
-                                self._dycore_state_dict[field.name].append(getattr(
-                                    self.state.dycore_state, field.name
-                                ).data.copy())
+                                self._dycore_state_dict[field.name].append(
+                                    getattr(self.state.dycore_state, field.name).data.copy()
+                                )
                             # For now I think the scalars do not need to be updated
                             # else:
                             #     dycore_state_dict[field.name] = getattr(
@@ -728,23 +681,45 @@ class Driver:
                             #     )
             self._end_of_step_actions(step)
 
-            if self._use_tf_SM and step != 0 and (step+1) % self._tf_sm_update_freq == 0:
+            if self._use_tf_SM and step != 0 and (step + 1) % self._tf_sm_update_freq == 0:
                 # There may be a conversion needed to go from Cubed sphere to Lat-Lon for U/V wind components
                 # See self._cubed_to_latlon from fv_dynamics.py
                 # Note: Not sure yet how to get the actual latitude and longitude values
                 # Note : U and V winds from cubed grid that are passed into _cubed_to_latlon
                 #        may have to be quantities(?)
-                for step in range(len(self._dycore_state_dict['u'])):
+                for step in range(len(self._dycore_state_dict["u"])):
                     self.dycore._cubed_to_latlon(
-                        self._dycore_state_dict['u'][step],
-                        self._dycore_state_dict['v'][step],
+                        self._dycore_state_dict["u"][step],
+                        self._dycore_state_dict["v"][step],
                         self._temp_ua,
                         self._temp_va,
                     )
 
-                    self._dycore_state_dict['u'][step] = self._temp_ua.data.copy()
-                    self._dycore_state_dict['v'][step] = self._temp_va.data.copy()
-                    
+                    self._dycore_state_dict["u"][step] = self._temp_ua.data.copy()
+                    self._dycore_state_dict["v"][step] = self._temp_va.data.copy()
+
+                print("GOING INTO LSM")
+                from LSM.main import LSM
+
+                self.LSM = LSM()
+                self.LSM(
+                    self.state.dycore_state.phis,
+                    self.state.dycore_state.u,
+                    self.state.dycore_state.v,
+                    self.state.dycore_state.pt,
+                    self.state.dycore_state.ps,
+                    self.state.dycore_state.pe,
+                    self.state.physics_state.phil,
+                    self.physics._microphysics._rain,
+                    self.physics._microphysics._graupel,
+                    self.physics._microphysics._snow,
+                    self.physics._microphysics._ice,
+                )
+                print("COMING OUT OF LSM")
+
+                test_data = xr.DataArray(self.state.physics_state.phil.view[:])
+                test_data_set = test_data.to_dataset(name="variable")
+                test_data_set.to_netcdf(f"/Users/ckropiew/misc/test_rank{self.comm.Get_rank()}.nc")
 
                 # Do some sort of remapping of the dycore state variables names to the ones used in the TensorFlow model
                 # Below are the forcing attributes names that are used in the TensorFlow model
@@ -767,7 +742,7 @@ class Driver:
 
                 # Normalize the data
                 # sm_data_normalized = normalizer(remap_dycore_state, self._tf_sm_normalizer)
-        
+
                 ndsl_log.info("Running TensorFlow Soil Moisture model")
                 """
                 # Run the TensorFlow model
@@ -777,8 +752,7 @@ class Driver:
                 # Reverse normalization?
                 # self.denormalize(sm_predictions)
 
-                # Write SM prediction back into the state object                
-
+                # Write SM prediction back into the state object
 
     def step_all(self):
         ndsl_log.info("integrating driver forward in time")
@@ -813,10 +787,7 @@ class Driver:
             self.config.dt_atmos,
             "Finished",
         )
-        if (
-            self.comm.Get_size()
-            <= self.config.performance_config.json_all_rank_threshold
-        ):
+        if self.comm.Get_size() <= self.config.performance_config.json_all_rank_threshold:
             self._write_performance_json_output()
         self.diagnostics.store_grid(
             grid_data=self.state.grid_data,
@@ -871,9 +842,7 @@ def _setup_factories(
         tile_rank=communicator.tile.rank,
     )
 
-    grid_indexing = GridIndexing.from_sizer_and_communicator(
-        sizer=sizer, comm=communicator
-    )
+    grid_indexing = GridIndexing.from_sizer_and_communicator(sizer=sizer, comm=communicator)
     quantity_factory = QuantityFactory.from_backend(
         sizer, backend=config.stencil_config.compilation_config.backend
     )
