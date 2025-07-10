@@ -55,7 +55,7 @@ def interpolate_to_fixed_height(
 class LSM:
     def __init__(self):
         # load the model
-        self.sm_model = tf.keras.models.load_model("/Users/ckropiew/pace_llm/SM_for_GEOS/sm_model")
+        self.sm_model = tf.keras.models.load_model("./LSM/sm_model")
 
     def __call__(
         self,
