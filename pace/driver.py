@@ -703,9 +703,10 @@ class Driver:
 
                 self.LSM = LSM()
                 self.LSM(
+                    self.state.grid_data,
                     self.state.dycore_state.phis,
-                    self.state.dycore_state.u,
-                    self.state.dycore_state.v,
+                    self.state.dycore_state.ua,
+                    self.state.dycore_state.va,
                     self.state.dycore_state.pt,
                     self.state.dycore_state.ps,
                     self.state.dycore_state.pe,
@@ -714,12 +715,32 @@ class Driver:
                     self.physics._microphysics._graupel,
                     self.physics._microphysics._snow,
                     self.physics._microphysics._ice,
+                    self.comm.Get_rank(),
                 )
+
+                output_data = xr.DataArray(self.LSM.interpolated_data)
+                output_dataset = output_data.to_dataset(name="variable")
+                output_dataset.to_netcdf(
+                    f"/Users/ckropiew/misc/interpolated_data_rank{self.comm.Get_rank()}.nc"
+                )
+
                 print("COMING OUT OF LSM")
 
-                test_data = xr.DataArray(self.state.physics_state.phil.view[:])
-                test_data_set = test_data.to_dataset(name="variable")
-                test_data_set.to_netcdf(f"/Users/ckropiew/misc/test_rank{self.comm.Get_rank()}.nc")
+                output_data = xr.DataArray(self.state.physics_state.phil.field)
+                output_dataset = output_data.to_dataset(name="variable")
+                output_dataset.to_netcdf(f"/Users/ckropiew/misc/phil_rank{self.comm.Get_rank()}.nc")
+
+                output_data = xr.DataArray(self.state.dycore_state.phis.field)
+                output_dataset = output_data.to_dataset(name="variable")
+                output_dataset.to_netcdf(f"/Users/ckropiew/misc/phis_rank{self.comm.Get_rank()}.nc")
+
+                output_data = xr.DataArray(self.state.physics_state.phii.field)
+                output_dataset = output_data.to_dataset(name="variable")
+                output_dataset.to_netcdf(f"/Users/ckropiew/misc/phii_rank{self.comm.Get_rank()}.nc")
+
+                output_data = xr.DataArray(self.state.dycore_state.pt.field)
+                output_dataset = output_data.to_dataset(name="variable")
+                output_dataset.to_netcdf(f"/Users/ckropiew/misc/pt_rank{self.comm.Get_rank()}.nc")
 
                 # Do some sort of remapping of the dycore state variables names to the ones used in the TensorFlow model
                 # Below are the forcing attributes names that are used in the TensorFlow model
@@ -735,9 +756,9 @@ class Driver:
                                }
 
                 remap_dycore_state = {
-                    key_mapping.get(k,k): v 
+                    key_mapping.get(k,k): v
                     for k, v in dycore_state_dict.items()
-                }                               
+                }
                 """
 
                 # Normalize the data
