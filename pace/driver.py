@@ -720,27 +720,25 @@ class Driver:
 
                 output_data = xr.DataArray(self.LSM.interpolated_data)
                 output_dataset = output_data.to_dataset(name="variable")
-                output_dataset.to_netcdf(
-                    f"/Users/ckropiew/misc/interpolated_data_rank{self.comm.Get_rank()}.nc"
-                )
+                output_dataset.to_netcdf(f"./LSM/debug_data/interpolated_data_rank{self.comm.Get_rank()}.nc")
 
                 print("COMING OUT OF LSM")
 
                 output_data = xr.DataArray(self.state.physics_state.phil.field)
                 output_dataset = output_data.to_dataset(name="variable")
-                output_dataset.to_netcdf(f"/Users/ckropiew/misc/phil_rank{self.comm.Get_rank()}.nc")
+                output_dataset.to_netcdf(f"./LSM/debug_data/phil_rank{self.comm.Get_rank()}.nc")
 
                 output_data = xr.DataArray(self.state.dycore_state.phis.field)
                 output_dataset = output_data.to_dataset(name="variable")
-                output_dataset.to_netcdf(f"/Users/ckropiew/misc/phis_rank{self.comm.Get_rank()}.nc")
+                output_dataset.to_netcdf(f"./LSM/debug_data/phis_rank{self.comm.Get_rank()}.nc")
 
                 output_data = xr.DataArray(self.state.physics_state.phii.field)
                 output_dataset = output_data.to_dataset(name="variable")
-                output_dataset.to_netcdf(f"/Users/ckropiew/misc/phii_rank{self.comm.Get_rank()}.nc")
+                output_dataset.to_netcdf(f"./LSM/debug_data/phii_rank{self.comm.Get_rank()}.nc")
 
                 output_data = xr.DataArray(self.state.dycore_state.pt.field)
                 output_dataset = output_data.to_dataset(name="variable")
-                output_dataset.to_netcdf(f"/Users/ckropiew/misc/pt_rank{self.comm.Get_rank()}.nc")
+                output_dataset.to_netcdf(f"./LSM/debug_data/pt_rank{self.comm.Get_rank()}.nc")
 
                 # Do some sort of remapping of the dycore state variables names to the ones used in the TensorFlow model
                 # Below are the forcing attributes names that are used in the TensorFlow model
