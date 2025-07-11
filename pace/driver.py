@@ -655,6 +655,7 @@ class Driver:
                     )
 
                 # Start recording data for the TensorFlow Soil Moisture model
+                # TODO find a way to save the previous (48 * batch_size) number of timesteps
                 if self._use_tf_SM:
                     if self._dycore_state_dict == None:
                         # Copy dycore state variables into a dictionary. Deep copy is performed if
@@ -682,23 +683,8 @@ class Driver:
             self._end_of_step_actions(step)
 
             if self._use_tf_SM and step != 0 and (step + 1) % self._tf_sm_update_freq == 0:
-                # There may be a conversion needed to go from Cubed sphere to Lat-Lon for U/V wind components
-                # See self._cubed_to_latlon from fv_dynamics.py
-                # Note: Not sure yet how to get the actual latitude and longitude values
-                # Note : U and V winds from cubed grid that are passed into _cubed_to_latlon
-                #        may have to be quantities(?)
-                for step in range(len(self._dycore_state_dict["u"])):
-                    self.dycore._cubed_to_latlon(
-                        self._dycore_state_dict["u"][step],
-                        self._dycore_state_dict["v"][step],
-                        self._temp_ua,
-                        self._temp_va,
-                    )
-
-                    self._dycore_state_dict["u"][step] = self._temp_ua.data.copy()
-                    self._dycore_state_dict["v"][step] = self._temp_va.data.copy()
-
                 print("GOING INTO LSM")
+                ndsl_log.info("Running TensorFlow Soil Moisture model")
                 from LSM.main import LSM
 
                 self.LSM = LSM()
@@ -740,38 +726,11 @@ class Driver:
                 output_dataset = output_data.to_dataset(name="variable")
                 output_dataset.to_netcdf(f"./LSM/debug_data/pt_rank{self.comm.Get_rank()}.nc")
 
-                # Do some sort of remapping of the dycore state variables names to the ones used in the TensorFlow model
-                # Below are the forcing attributes names that are used in the TensorFlow model
-                """
-                forcing_attributes=['cape','cp','cvh','cvl','fal','lai_hv','lai_lv','msdwlwrf','msdwswrf',
-                    'pev','skt','sp','ssr','ssrd','str','strd','stl1','stl2','stl3',
-                    'stl4','t2m','d2m','tp','u10','v10','z','swvl1','slhf','e','csfr',
-                    'es','smlt','sd']
+                output_data = xr.DataArray(self.LSM.soil_moisture)
+                output_dataset = output_data.to_dataset(name="variable")
+                output_dataset.to_netcdf(f"./LSM/debug_data/soil_moisture_rank{self.comm.Get_rank()}.nc")
 
-                key_mapping = {'u': 'u10',
-                               'v': 'v10',
-                               ...
-                               }
-
-                remap_dycore_state = {
-                    key_mapping.get(k,k): v
-                    for k, v in dycore_state_dict.items()
-                }
-                """
-
-                # Normalize the data
-                # sm_data_normalized = normalizer(remap_dycore_state, self._tf_sm_normalizer)
-
-                ndsl_log.info("Running TensorFlow Soil Moisture model")
-                """
-                # Run the TensorFlow model
-                sm_predictions = self.tf_sm_model.predict_on_batch(sm_data_normalized)
-                """
-
-                # Reverse normalization?
-                # self.denormalize(sm_predictions)
-
-                # Write SM prediction back into the state object
+                # TODO Write SM prediction back into the state object
 
     def step_all(self):
         ndsl_log.info("integrating driver forward in time")

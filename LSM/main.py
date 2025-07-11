@@ -86,6 +86,7 @@ class LSM:
                     ) / 2
 
         # Interpolate temperature and winds to required heights
+        # TODO figure out how to normalize to negative geopotential heights
         self.interpolated_data = interpolate_to_fixed_height(
             surface_geopotential.field,
             geopotential_height_center.field,
@@ -132,10 +133,11 @@ class LSM:
             "es",
             "smlt",
             "sd",
-            "sro",
-            "ssro",
         ]
 
+        # TODO bring in ERA5 data where necessary
+
+        self.soil_moisture = np.full((domain[0], domain[1]), np.nan)
         for i in range(domain[0]):
             for j in range(domain[1]):
                 LSM_inputs = {}
@@ -167,8 +169,5 @@ class LSM:
                                 array[batch, time, 0, 0] = junk_data[i, j]
                         LSM_inputs[var] = array
 
-                print(f"README {type(LSM_inputs), LSM_inputs.keys()}")
-                for var in LSM_inputs.keys():
-                    print(f"{var}: {LSM_inputs[var].shape}")
                 # Run the model
-                # self.sm_model.predict_on_batch(LSM_inputs)
+                self.soil_moisture[i, j] = self.sm_model.predict_on_batch(LSM_inputs)["soil_moisture"][0][0]
