@@ -45,8 +45,8 @@ from pySHiELD import Physics, PhysicsConfig
 from pySHiELD.update import update_atmos_state
 
 from ndsl.stencils.c2l_ord import CubedToLatLon
-from tf_LSM.utils import normalizer
-
+from LSM.LSM import LSM, update_qvapor
+from LSM.input_data import LSMInputData
 
 try:
     import cupy as cp
@@ -528,37 +528,15 @@ class Driver:
         # TODO: There should be a flag in the configuration to enable AI physics models
         # in the physics config file.  Right now, we have a model for the soil moisture,
         # but we can add more models in the future.
-        self._use_tf_SM = True
-        if self._use_tf_SM:
+        self.run_LSM = True
+        if self.run_LSM:
+
             ndsl_log.info("Loading TensorFlow Soil Moisture model")
-            # *** Commenting model for the time being to save space ***
-            # self.tf_sm_model = tf.keras.models.load_model(
-            #     "./tf_LSM/sm_model"
-            # )
+            self.LSM_run_frequency = 4
+            self.LSM = LSM(self.state.grid_data, self.stencil_factory)
 
-            # For now, we will let the model run for 10 steps and then feed data into the
-            # TF model.
-            self._tf_sm_update_freq = 4
-
-            # This .nc file contains the normalization statistics for the soil moisture model
-            self._tf_sm_normalizer = xr.open_dataset("./tf_LSM/utils/stats.nc")
-            self._dycore_state_dict = None
-
-            # Note that fv_dynamics.py laid out a CubedToLatLong function that converts U/V wind values from
-            # cubed sphere state to lat-lon
-            # We can access it via self.dycore._cubed_to_latlon
-
-            # We need to create temporary quantities to hold the converted U/W wind values
-            self._temp_ua = self.quantity_factory.zeros(
-                dims=[X_DIM, Y_DIM, Z_DIM],
-                units="",
-                dtype=Float,
-            )
-            self._temp_va = self.quantity_factory.zeros(
-                dims=[X_DIM, Y_DIM, Z_DIM],
-                units="",
-                dtype=Float,
-            )
+            # Initalize the system which will hold data from the previous timesteps
+            self.LSM_input_data = LSMInputData(self.LSM_run_frequency)
 
     def _update_driver_config_with_communicator(self, communicator: Communicator) -> None:
         dace_config = DaceConfig(
@@ -654,65 +632,43 @@ class Driver:
                         dt=dt,
                     )
 
-                # Start recording data for the TensorFlow Soil Moisture model
-                # TODO find a way to save the previous (48 * batch_size) number of timesteps
-                if self._use_tf_SM:
-                    if self._dycore_state_dict == None:
-                        # Copy dycore state variables into a dictionary. Deep copy is performed if
-                        # variable is a Quantity, otherwise a scalar copy is performed.
-                        self._dycore_state_dict = {
-                            field.name: (
-                                [getattr(self.state.dycore_state, field.name).data.copy()]
-                                if type(getattr(self.state.dycore_state, field.name)) is not float
-                                else getattr(self.state.dycore_state, field.name)
-                            )
-                            for field in dataclasses.fields(self.state.dycore_state)
-                        }
-                    # If the dycore state dictionary is already created, we can add to it
-                    else:
-                        for field in dataclasses.fields(self.state.dycore_state):
-                            if type(getattr(self.state.dycore_state, field.name)) is not float:
-                                self._dycore_state_dict[field.name].append(
-                                    getattr(self.state.dycore_state, field.name).data.copy()
-                                )
-                            # For now I think the scalars do not need to be updated
-                            # else:
-                            #     dycore_state_dict[field.name] = getattr(
-                            #         self.state.dycore_state, field.name
-                            #     )
-            self._end_of_step_actions(step)
+                # Save data from current timestep for the LSM
+                if self.run_LSM:
+                    self.LSM_input_data.add_data(
+                        self.state.dycore_state.phis,
+                        self.state.dycore_state.ua,
+                        self.state.dycore_state.va,
+                        self.state.dycore_state.pt,
+                        self.state.dycore_state.qvapor,
+                        self.state.dycore_state.ps,
+                        self.state.dycore_state.pe,
+                        self.state.dycore_state.pkz,
+                        self.state.physics_state.phil,
+                        self.state.physics_state.phii,
+                        self.physics._microphysics._rain,
+                        self.physics._microphysics._graupel,
+                        self.physics._microphysics._snow,
+                        self.physics._microphysics._ice,
+                    )
 
-            if self._use_tf_SM and step != 0 and (step + 1) % self._tf_sm_update_freq == 0:
+            self._end_of_step_actions(step)
+            if self.run_LSM and step != 0 and (step + 1) % self.LSM_run_frequency == 0:
                 print("GOING INTO LSM")
                 ndsl_log.info("Running TensorFlow Soil Moisture model")
-                from LSM.main import LSM
-
-                self.LSM = LSM()
                 self.LSM(
-                    self.state.grid_data,
-                    self.state.dycore_state.phis,
-                    self.state.dycore_state.ua,
-                    self.state.dycore_state.va,
-                    self.state.dycore_state.pt,
-                    self.state.dycore_state.ps,
-                    self.state.dycore_state.pe,
-                    self.state.physics_state.phil,
-                    self.physics._microphysics._rain,
-                    self.physics._microphysics._graupel,
-                    self.physics._microphysics._snow,
-                    self.physics._microphysics._ice,
+                    self.LSM_input_data,
                     self.comm.Get_rank(),
                 )
 
-                output_data = xr.DataArray(self.LSM.interpolated_data)
-                output_dataset = output_data.to_dataset(name="variable")
-                output_dataset.to_netcdf(f"./LSM/debug_data/interpolated_data_rank{self.comm.Get_rank()}.nc")
-
                 print("COMING OUT OF LSM")
 
-                output_data = xr.DataArray(self.state.physics_state.phil.field)
+                output_data = xr.DataArray(self.state.grid_data.lat_agrid.field)
                 output_dataset = output_data.to_dataset(name="variable")
-                output_dataset.to_netcdf(f"./LSM/debug_data/phil_rank{self.comm.Get_rank()}.nc")
+                output_dataset.to_netcdf(f"./LSM/debug_data/lat_rank{self.comm.Get_rank()}.nc")
+
+                output_data = xr.DataArray(self.state.grid_data.lon_agrid.field)
+                output_dataset = output_data.to_dataset(name="variable")
+                output_dataset.to_netcdf(f"./LSM/debug_data/lon_rank{self.comm.Get_rank()}.nc")
 
                 output_data = xr.DataArray(self.state.dycore_state.phis.field)
                 output_dataset = output_data.to_dataset(name="variable")
@@ -722,15 +678,56 @@ class Driver:
                 output_dataset = output_data.to_dataset(name="variable")
                 output_dataset.to_netcdf(f"./LSM/debug_data/phii_rank{self.comm.Get_rank()}.nc")
 
+                output_data = xr.DataArray(self.state.physics_state.phil.field)
+                output_dataset = output_data.to_dataset(name="variable")
+                output_dataset.to_netcdf(f"./LSM/debug_data/phil_rank{self.comm.Get_rank()}.nc")
+
                 output_data = xr.DataArray(self.state.dycore_state.pt.field)
                 output_dataset = output_data.to_dataset(name="variable")
                 output_dataset.to_netcdf(f"./LSM/debug_data/pt_rank{self.comm.Get_rank()}.nc")
+
+                output_data = xr.DataArray(self.state.dycore_state.pe.field)
+                output_dataset = output_data.to_dataset(name="variable")
+                output_dataset.to_netcdf(f"./LSM/debug_data/pe_rank{self.comm.Get_rank()}.nc")
+
+                output_data = xr.DataArray(self.state.dycore_state.ps.field)
+                output_dataset = output_data.to_dataset(name="variable")
+                output_dataset.to_netcdf(f"./LSM/debug_data/ps_rank{self.comm.Get_rank()}.nc")
+
+                output_data = xr.DataArray(self.state.dycore_state.pk.field)
+                output_dataset = output_data.to_dataset(name="variable")
+                output_dataset.to_netcdf(f"./LSM/debug_data/pk_rank{self.comm.Get_rank()}.nc")
+
+                output_data = xr.DataArray(self.state.dycore_state.pkz.field)
+                output_dataset = output_data.to_dataset(name="variable")
+                output_dataset.to_netcdf(f"./LSM/debug_data/pkz_rank{self.comm.Get_rank()}.nc")
 
                 output_data = xr.DataArray(self.LSM.soil_moisture)
                 output_dataset = output_data.to_dataset(name="variable")
                 output_dataset.to_netcdf(f"./LSM/debug_data/soil_moisture_rank{self.comm.Get_rank()}.nc")
 
+                output_data = xr.DataArray(self.LSM.soil_moisture_normalized)
+                output_dataset = output_data.to_dataset(name="variable")
+                output_dataset.to_netcdf(
+                    f"./LSM/debug_data/soil_moisture_normalized_rank{self.comm.Get_rank()}.nc"
+                )
+
+                output_data = xr.DataArray(self.state.dycore_state.qvapor.field)
+                output_dataset = output_data.to_dataset(name="variable")
+                output_dataset.to_netcdf(
+                    f"./LSM/debug_data/qvapor_before_adjustment_rank{self.comm.Get_rank()}.nc"
+                )
+
                 # TODO Write SM prediction back into the state object
+                self.state.dycore_state.qvapor = update_qvapor(
+                    self.stencil_factory, self.LSM.soil_moisture_normalized, self.state.dycore_state.qvapor
+                )
+
+                output_data = xr.DataArray(self.state.dycore_state.qvapor.field)
+                output_dataset = output_data.to_dataset(name="variable")
+                output_dataset.to_netcdf(
+                    f"./LSM/debug_data/qvapor_after_adjustment_rank{self.comm.Get_rank()}.nc"
+                )
 
     def step_all(self):
         ndsl_log.info("integrating driver forward in time")
