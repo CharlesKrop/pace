@@ -38,9 +38,9 @@ def compute_additional_state(
     center_pressure = np.zeros(
         (
             input_data.max_steps,
-            input_data.edge_pressure[0].field.shape[0],
-            input_data.edge_pressure[0].field.shape[1],
-            input_data.edge_pressure[0].field.shape[2] - 1,
+            input_data.edge_pressure[0].shape[0],
+            input_data.edge_pressure[0].shape[1],
+            input_data.edge_pressure[0].shape[2] - 1,
         )
     )
     for step in range(input_data.max_steps):
@@ -48,29 +48,28 @@ def compute_additional_state(
             for j in range(center_pressure.shape[2]):
                 for k in range(center_pressure.shape[3]):
                     center_pressure[step, i, j, k] = (
-                        input_data.edge_pressure[step].field[i, j, k]
-                        + input_data.edge_pressure[step].field[i, j, k + 1]
+                        input_data.edge_pressure[step][i, j, k] + input_data.edge_pressure[step][i, j, k + 1]
                     ) / 2
 
     # compute temperature
     temperature = np.zeros(
         (
             input_data.max_steps,
-            input_data.edge_pressure[0].field.shape[0],
-            input_data.edge_pressure[0].field.shape[1],
-            input_data.edge_pressure[0].field.shape[2] - 1,
+            input_data.edge_pressure[0].shape[0],
+            input_data.edge_pressure[0].shape[1],
+            input_data.edge_pressure[0].shape[2] - 1,
         )
     )
     for step in range(input_data.max_steps):
-        temperature[step, :, :, :] = input_data.potential_temperature[step].field
+        temperature[step, :, :, :] = input_data.potential_temperature[step]
 
     # compute dewpoint
     dewpoint = np.zeros(
         (
             input_data.max_steps,
-            input_data.edge_pressure[0].field.shape[0],
-            input_data.edge_pressure[0].field.shape[1],
-            input_data.edge_pressure[0].field.shape[2] - 1,
+            input_data.edge_pressure[0].shape[0],
+            input_data.edge_pressure[0].shape[1],
+            input_data.edge_pressure[0].shape[2] - 1,
         )
     )
     for step in range(input_data.max_steps):
@@ -78,7 +77,7 @@ def compute_additional_state(
             273.15
             + metpy.calc.dewpoint_from_specific_humidity(
                 center_pressure[step, :, :, :] * metpy.units.units("pascals"),
-                input_data.specific_humidity[step].field * metpy.units.units("kg/kg"),
+                input_data.specific_humidity[step] * metpy.units.units("kg/kg"),
             ).m
         )
 

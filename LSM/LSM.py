@@ -7,7 +7,7 @@ import numpy as np
 from LSM.input_data import LSMInputData
 from LSM.extra_parameters.CAPE import compute_cape
 from LSM.extra_parameters.interpolate import interpolate_to_fixed_height
-from LSM.normalize_batch import normalize_batch
+from LSM.normalize_batch import normalize_lsm_inputs, normalize_batch
 from LSM.extra_parameters.base_state import compute_additional_state
 
 
@@ -55,7 +55,6 @@ class LSM:
 
         # Fields required for LSM
         domain = self.stencil_factory.grid_indexing.domain
-        junk_data = np.random.random(domain[0:2])
 
         center_pressure, temperature, dewpoint = compute_additional_state(input_data)
 
@@ -97,264 +96,204 @@ class LSM:
 
         self.soil_moisture = np.full((domain[0], domain[1]), np.nan)
         self.soil_moisture_normalized = np.full((domain[0], domain[1]), np.nan)
-        for i in range(domain[0]):
-            for j in range(domain[1]):
-                print(f"START {i, j}", flush=True)
-                LSM_inputs = {}
-                batch_size = 1
-                past_times = 48
+        LSM_inputs = {}
+        for var in LSM_input_vars:
+            batch_size = 1
+            past_times = 48
 
-                # find nearest lat lon point for ERA5 data
-                lat_index = np.abs(
-                    self.era5_accum["latitude"].values - self.grid_data.lat_agrid.field[i, j]
-                ).argmin()
-                lon_index = np.abs(
-                    self.era5_accum["longitude"].values - self.grid_data.lon_agrid.field[i, j]
-                ).argmin()
+            # fill inputs for the LSM
+            array = np.full((batch_size, past_times, domain[0], domain[1]), np.nan)
+            for batch in range(batch_size):
+                for time in range(past_times):
+                    for i in range(domain[0]):
+                        for j in range(domain[1]):
+                            # find nearest lat lon point for ERA5 data
+                            lat_index = np.abs(
+                                self.era5_accum["latitude"].values - self.grid_data.lat_agrid.field[i, j]
+                            ).argmin()
+                            lon_index = np.abs(
+                                self.era5_accum["longitude"].values - self.grid_data.lon_agrid.field[i, j]
+                            ).argmin()
 
-                # fill inputs for the LSM
-                for var in LSM_input_vars:
-                    array = np.full((batch_size, past_times, 1, 1), np.nan)
-                    for batch in range(batch_size):
-                        for time in range(past_times):
                             if var == "cape":
-                                if time < input_data.max_steps:
-                                    cape, _ = compute_cape(
-                                        center_pressure[time, i, j, :],
-                                        temperature[time, i, j, :],
-                                        dewpoint[time, i, j, :],
-                                    )
-                                    array[batch, time, 0, 0] = cape
-                                else:
-                                    cape, _ = compute_cape(
-                                        center_pressure[-1, i, j, :],
-                                        temperature[-1, i, j, :],
-                                        dewpoint[-1, i, j, :],
-                                    )
-                                    array[batch, time, 0, 0] = cape
+                                array[batch, time, i, j], _ = compute_cape(
+                                    center_pressure[time][i, j, :],
+                                    temperature[time][i, j, :],
+                                    dewpoint[time][i, j, :],
+                                )
                             if var == "cp":
-                                if time < input_data.max_steps:
-                                    array[batch, time, 0, 0] = (
-                                        input_data.rain[time].field[i, j, -1]
-                                        + input_data.graupel[time].field[i, j, -1]
-                                        + input_data.snow[time].field[i, j, -1]
-                                        + input_data.ice[time].field[i, j, -1]
-                                    )
-                                else:
-                                    array[batch, time, 0, 0] = (
-                                        input_data.rain[-1].field[i, j, -1]
-                                        + input_data.graupel[-1].field[i, j, -1]
-                                        + input_data.snow[-1].field[i, j, -1]
-                                        + input_data.ice[-1].field[i, j, -1]
-                                    )
+                                array[batch, time, i, j] = (
+                                    input_data.rain[time][i, j, -1]
+                                    + input_data.graupel[time][i, j, -1]
+                                    + input_data.snow[time][i, j, -1]
+                                    + input_data.ice[time][i, j, -1]
+                                )
                             elif var == "cvh":
-                                array[batch, time, 0, 0] = self.era5_instant["cvh"].values[
+                                array[batch, time, i, j] = self.era5_instant["cvh"].values[
                                     0, lat_index, lon_index
                                 ]
                             elif var == "cvl":
-                                array[batch, time, 0, 0] = self.era5_instant["cvl"].values[
+                                array[batch, time, i, j] = self.era5_instant["cvl"].values[
                                     0, lat_index, lon_index
                                 ]
                             elif var == "fal":
-                                array[batch, time, 0, 0] = self.era5_instant["fal"].values[
+                                array[batch, time, i, j] = self.era5_instant["fal"].values[
                                     0, lat_index, lon_index
                                 ]
                             elif var == "lai_hv":
-                                array[batch, time, 0, 0] = self.era5_instant["lai_hv"].values[
+                                array[batch, time, i, j] = self.era5_instant["lai_hv"].values[
                                     0, lat_index, lon_index
                                 ]
                             elif var == "lai_lv":
-                                array[batch, time, 0, 0] = self.era5_instant["lai_lv"].values[
+                                array[batch, time, i, j] = self.era5_instant["lai_lv"].values[
                                     0, lat_index, lon_index
                                 ]
                             elif var == "msdwlwrf":
-                                array[batch, time, 0, 0] = self.era5_avg["avg_sdlwrf"].values[
+                                array[batch, time, i, j] = self.era5_avg["avg_sdlwrf"].values[
                                     0, lat_index, lon_index
                                 ]
                             elif var == "msdwswrf":
-                                array[batch, time, 0, 0] = self.era5_avg["avg_sdswrf"].values[
+                                array[batch, time, i, j] = self.era5_avg["avg_sdswrf"].values[
                                     0, lat_index, lon_index
                                 ]
                             elif var == "pev":
-                                array[batch, time, 0, 0] = self.era5_accum["pev"].values[
+                                array[batch, time, i, j] = self.era5_accum["pev"].values[
                                     0, lat_index, lon_index
                                 ]
                             elif var == "skt":
-                                array[batch, time, 0, 0] = self.era5_instant["skt"].values[
+                                array[batch, time, i, j] = self.era5_instant["skt"].values[
                                     0, lat_index, lon_index
                                 ]
                             elif var == "sp":
-                                if time < input_data.max_steps:
-                                    array[batch, time, 0, 0] = input_data.edge_pressure[time].field[i, j, -1]
-                                else:
-                                    array[batch, time, 0, 0] = input_data.edge_pressure[-1].field[i, j, -1]
+                                array[batch, time, i, j] = input_data.edge_pressure[time][i, j, -1]
                             elif var == "ssr":
-                                array[batch, time, 0, 0] = self.era5_avg["avg_snswrf"].values[
+                                array[batch, time, i, j] = self.era5_avg["avg_snswrf"].values[
                                     0, lat_index, lon_index
                                 ]
                             elif var == "ssrd":
-                                array[batch, time, 0, 0] = self.era5_accum["ssrd"].values[
+                                array[batch, time, i, j] = self.era5_accum["ssrd"].values[
                                     0, lat_index, lon_index
                                 ]
                             elif var == "str":
-                                array[batch, time, 0, 0] = self.era5_avg["avg_snlwrf"].values[
+                                array[batch, time, i, j] = self.era5_avg["avg_snlwrf"].values[
                                     0, lat_index, lon_index
                                 ]
                             elif var == "strd":
-                                array[batch, time, 0, 0] = self.era5_accum["strd"].values[
+                                array[batch, time, i, j] = self.era5_accum["strd"].values[
                                     0, lat_index, lon_index
                                 ]
                             elif var == "stl1":
-                                array[batch, time, 0, 0] = self.era5_instant["stl1"].values[
+                                array[batch, time, i, j] = self.era5_instant["stl1"].values[
                                     0, lat_index, lon_index
                                 ]
                             elif var == "stl2":
-                                array[batch, time, 0, 0] = self.era5_instant["stl2"].values[
+                                array[batch, time, i, j] = self.era5_instant["stl2"].values[
                                     0, lat_index, lon_index
                                 ]
                             elif var == "stl3":
-                                array[batch, time, 0, 0] = self.era5_instant["stl3"].values[
+                                array[batch, time, i, j] = self.era5_instant["stl3"].values[
                                     0, lat_index, lon_index
                                 ]
                             elif var == "stl4":
-                                array[batch, time, 0, 0] = self.era5_instant["stl4"].values[
+                                array[batch, time, i, j] = self.era5_instant["stl4"].values[
                                     0, lat_index, lon_index
                                 ]
                             elif var == "t2m":
-                                if time < input_data.max_steps:
-                                    # TODO figure out how to normalize to negative geopotential heights
-                                    # TODO get real surface data instead of using lowest grid center data
-                                    array[batch, time, 0, 0] = interpolate_to_fixed_height(
-                                        input_data.surface_geopotential[time].field[i, j],
-                                        input_data.geopotential_height_center[time].field[i, j, :],
-                                        temperature[time, i, j, :],
-                                        temperature[time, i, j, -1],  # TODO need actual surface data
-                                        2,
-                                    )
-                                else:
-                                    array[batch, time, 0, 0] = interpolate_to_fixed_height(
-                                        input_data.surface_geopotential[-1].field[i, j],
-                                        input_data.geopotential_height_center[-1].field[i, j, :],
-                                        temperature[-1, i, j, :],
-                                        temperature[-1, i, j, -1],  # TODO need actual surface data
-                                        2,
-                                    )
+                                # TODO figure out how to normalize to negative geopotential heights
+                                # TODO get real surface data instead of using lowest grid center data
+                                array[batch, time, i, j] = interpolate_to_fixed_height(
+                                    input_data.surface_geopotential[time][i, j],
+                                    input_data.geopotential_height_center[time][i, j, :],
+                                    temperature[time][i, j, :],
+                                    temperature[time][i, j, -1],  # TODO need actual surface data
+                                    2,
+                                )
                             elif var == "d2m":
-                                if time < input_data.max_steps:
-                                    # TODO figure out how to normalize to negative geopotential heights
-                                    # TODO get real surface data instead of using lowest grid center data
-                                    array[batch, time, 0, 0] = interpolate_to_fixed_height(
-                                        input_data.surface_geopotential[time].field[i, j],
-                                        input_data.geopotential_height_center[time].field[i, j, :],
-                                        dewpoint[time, i, j, :],
-                                        dewpoint[time, i, j, -1],  # TODO need actual surface data
-                                        2,
-                                    )
-                                else:
-                                    array[batch, time, 0, 0] = interpolate_to_fixed_height(
-                                        input_data.surface_geopotential[-1].field[i, j],
-                                        input_data.geopotential_height_center[-1].field[i, j, :],
-                                        dewpoint[-1, i, j, :],
-                                        dewpoint[-1, i, j, -1],  # TODO need actual surface data
-                                        2,
-                                    )
+                                # TODO figure out how to normalize to negative geopotential heights
+                                # TODO get real surface data instead of using lowest grid center data
+                                array[batch, time, i, j] = interpolate_to_fixed_height(
+                                    input_data.surface_geopotential[time][i, j],
+                                    input_data.geopotential_height_center[time][i, j, :],
+                                    dewpoint[time][i, j, :],
+                                    dewpoint[time][i, j, -1],  # TODO need actual surface data
+                                    2,
+                                )
                             elif var == "tp":
-                                if time < input_data.max_steps:
-                                    array[batch, time, 0, 0] = (
-                                        input_data.rain[time].field[i, j, -1]
-                                        + input_data.graupel[time].field[i, j, -1]
-                                        + input_data.snow[time].field[i, j, -1]
-                                        + input_data.ice[time].field[i, j, -1]
-                                    )
-                                else:
-                                    array[batch, time, 0, 0] = (
-                                        input_data.rain[-1].field[i, j, -1]
-                                        + input_data.graupel[-1].field[i, j, -1]
-                                        + input_data.snow[-1].field[i, j, -1]
-                                        + input_data.ice[-1].field[i, j, -1]
-                                    )
+                                array[batch, time, i, j] = (
+                                    input_data.rain[time][i, j, -1]
+                                    + input_data.graupel[time][i, j, -1]
+                                    + input_data.snow[time][i, j, -1]
+                                    + input_data.ice[time][i, j, -1]
+                                )
                             elif var == "u10":
-                                if time < input_data.max_steps:
-                                    # TODO figure out how to normalize to negative geopotential heights
-                                    # TODO get real surface data instead of using lowest grid center data
-                                    array[batch, time, 0, 0] = interpolate_to_fixed_height(
-                                        input_data.surface_geopotential[time].field[i, j],
-                                        input_data.geopotential_height_center[time].field[i, j, :],
-                                        input_data.u[time].field[i, j, :],
-                                        input_data.u[time].field[i, j, -1],  # TODO need actual surface data
-                                        10,
-                                    )
-                                else:
-                                    array[batch, time, 0, 0] = interpolate_to_fixed_height(
-                                        input_data.surface_geopotential[-1].field[i, j],
-                                        input_data.geopotential_height_center[-1].field[i, j, :],
-                                        input_data.u[-1].field[i, j, :],
-                                        input_data.u[-1].field[i, j, -1],  # TODO need actual surface data
-                                        10,
-                                    )
+                                # TODO figure out how to normalize to negative geopotential heights
+                                # TODO get real surface data instead of using lowest grid center data
+                                array[batch, time, i, j] = interpolate_to_fixed_height(
+                                    input_data.surface_geopotential[time][i, j],
+                                    input_data.geopotential_height_center[time][i, j, :],
+                                    input_data.u[time][i, j, :],
+                                    input_data.u[time][i, j, -1],  # TODO need actual surface data
+                                    10,
+                                )
                             elif var == "v10":
-                                if time < input_data.max_steps:
-                                    # TODO figure out how to normalize to negative geopotential heights
-                                    # TODO get real surface data instead of using lowest grid center data
-                                    array[batch, time, 0, 0] = interpolate_to_fixed_height(
-                                        input_data.surface_geopotential[time].field[i, j],
-                                        input_data.geopotential_height_center[time].field[i, j, :],
-                                        input_data.v[time].field[i, j, :],
-                                        input_data.v[time].field[i, j, -1],  # TODO need actual surface data
-                                        10,
-                                    )
-                                else:
-                                    array[batch, time, 0, 0] = interpolate_to_fixed_height(
-                                        input_data.surface_geopotential[-1].field[i, j],
-                                        input_data.geopotential_height_center[-1].field[i, j, :],
-                                        input_data.v[-1].field[i, j, :],
-                                        input_data.v[-1].field[i, j, -1],  # TODO need actual surface data
-                                        10,
-                                    )
+                                # TODO figure out how to normalize to negative geopotential heights
+                                # TODO get real surface data instead of using lowest grid center data
+                                array[batch, time, i, j] = interpolate_to_fixed_height(
+                                    input_data.surface_geopotential[time][i, j],
+                                    input_data.geopotential_height_center[time][i, j, :],
+                                    input_data.v[time][i, j, :],
+                                    input_data.v[time][i, j, -1],  # TODO need actual surface data
+                                    10,
+                                )
                             elif var == "z":
-                                if time < input_data.max_steps:
-                                    array[batch, time, 0, 0] = input_data.surface_geopotential[time].field[
-                                        i, j
-                                    ]
-                                else:
-                                    array[batch, time, 0, 0] = input_data.surface_geopotential[-1].field[i, j]
+                                array[batch, time, i, j] = input_data.surface_geopotential[time][i, j]
                             elif var == "swvl1":
-                                array[batch, time, 0, 0] = self.era5_instant["swvl1"].values[
+                                array[batch, time, i, j] = self.era5_instant["swvl1"].values[
                                     0, lat_index, lon_index
                                 ]
                             elif var == "slhf":
-                                array[batch, time, 0, 0] = self.era5_accum["slhf"].values[
+                                array[batch, time, i, j] = self.era5_accum["slhf"].values[
                                     0, lat_index, lon_index
                                 ]
                             elif var == "e":
-                                array[batch, time, 0, 0] = self.era5_accum["slhf"].values[
+                                array[batch, time, i, j] = self.era5_accum["slhf"].values[
                                     0, lat_index, lon_index
                                 ]
                             elif var == "csfr":
-                                array[batch, time, 0, 0] = self.era5_instant["csfr"].values[
+                                array[batch, time, i, j] = self.era5_instant["csfr"].values[
                                     0, lat_index, lon_index
                                 ]
                             elif var == "es":
-                                array[batch, time, 0, 0] = self.era5_accum["es"].values[
+                                array[batch, time, i, j] = self.era5_accum["es"].values[
                                     0, lat_index, lon_index
                                 ]
                             elif var == "smlt":
-                                array[batch, time, 0, 0] = self.era5_accum["smlt"].values[
+                                array[batch, time, i, j] = self.era5_accum["smlt"].values[
                                     0, lat_index, lon_index
                                 ]
                             elif var == "sd":
-                                array[batch, time, 0, 0] = self.era5_instant["sd"].values[
+                                array[batch, time, i, j] = self.era5_instant["sd"].values[
                                     0, lat_index, lon_index
                                 ]
-                        LSM_inputs[var] = array
+                LSM_inputs[var] = array
 
-                # Normalize data
-                LSM_inputs_normalized = normalize_batch(LSM_inputs, self.stats)
+        # Normalize data
+        LSM_inputs_normalized = normalize_lsm_inputs(LSM_inputs, self.stats)
 
+        for i in range(domain[0]):
+            for j in range(domain[1]):
                 # Run the model with un-normalized data
-                self.soil_moisture[i, j] = self.sm_model.predict_on_batch(LSM_inputs)["soil_moisture"][0][0]
+                selected_inputs = {k: v[:, :, i : i + 1, j : j + 1] for k, v in LSM_inputs.items()}
+                print(f"UN-NORMALIZED DATA {selected_inputs['cape'][0, :]}")
+                self.soil_moisture[i, j] = self.sm_model.predict_on_batch(selected_inputs)["soil_moisture"][
+                    0
+                ][0]
+
                 # Run the model with normalized data
-                self.soil_moisture_normalized[i, j] = self.sm_model.predict_on_batch(LSM_inputs_normalized)[
-                    "soil_moisture"
-                ][0][0]
-                print(f"END {i, j}", flush=True)
+                selected_inputs_normalized = {
+                    k: v[:, :, i : i + 1, j : j + 1] for k, v in LSM_inputs_normalized.items()
+                }
+                print(f"NORMALIZED DATA {selected_inputs_normalized['cape'][0, :]}")
+                self.soil_moisture_normalized[i, j] = self.sm_model.predict_on_batch(
+                    selected_inputs_normalized
+                )["soil_moisture"][0][0]

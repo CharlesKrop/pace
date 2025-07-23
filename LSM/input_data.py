@@ -24,21 +24,22 @@ class LSMInputData:
 
     def add_data(
         self,
-        surface_geopotential: Quantity,
-        u: Quantity,
-        v: Quantity,
-        potential_temperature: Quantity,
-        specific_humidity: Quantity,
-        surface_pressure: Quantity,
-        edge_pressure: Quantity,
-        kappa_pressure: Quantity,
-        geopotential_height_center: Quantity,
-        geopotential_height_interface: Quantity,
-        rain: Quantity,
-        graupel: Quantity,
-        snow: Quantity,
-        ice: Quantity,
+        surface_geopotential: np.ndarray,
+        u: np.ndarray,
+        v: np.ndarray,
+        potential_temperature: np.ndarray,
+        specific_humidity: np.ndarray,
+        surface_pressure: np.ndarray,
+        edge_pressure: np.ndarray,
+        kappa_pressure: np.ndarray,
+        geopotential_height_center: np.ndarray,
+        geopotential_height_interface: np.ndarray,
+        rain: np.ndarray,
+        graupel: np.ndarray,
+        snow: np.ndarray,
+        ice: np.ndarray,
     ):
+
         self.surface_geopotential.append(surface_geopotential)
         self.u.append(u)
         self.v.append(v)

@@ -532,7 +532,7 @@ class Driver:
         if self.run_LSM:
 
             ndsl_log.info("Loading TensorFlow Soil Moisture model")
-            self.LSM_run_frequency = 4
+            self.LSM_run_frequency = 48
             self.LSM = LSM(self.state.grid_data, self.stencil_factory)
 
             # Initalize the system which will hold data from the previous timesteps
@@ -635,20 +635,20 @@ class Driver:
                 # Save data from current timestep for the LSM
                 if self.run_LSM:
                     self.LSM_input_data.add_data(
-                        self.state.dycore_state.phis,
-                        self.state.dycore_state.ua,
-                        self.state.dycore_state.va,
-                        self.state.dycore_state.pt,
-                        self.state.dycore_state.qvapor,
-                        self.state.dycore_state.ps,
-                        self.state.dycore_state.pe,
-                        self.state.dycore_state.pkz,
-                        self.state.physics_state.phil,
-                        self.state.physics_state.phii,
-                        self.physics._microphysics._rain,
-                        self.physics._microphysics._graupel,
-                        self.physics._microphysics._snow,
-                        self.physics._microphysics._ice,
+                        self.state.dycore_state.phis.field.copy(),
+                        self.state.dycore_state.ua.field.copy(),
+                        self.state.dycore_state.va.field.copy(),
+                        self.state.dycore_state.pt.field.copy(),
+                        self.state.dycore_state.qvapor.field.copy(),
+                        self.state.dycore_state.ps.field.copy(),
+                        self.state.dycore_state.pe.field.copy(),
+                        self.state.dycore_state.pkz.field.copy(),
+                        self.state.physics_state.phil.field.copy(),
+                        self.state.physics_state.phii.field.copy(),
+                        self.physics._microphysics._rain.field.copy(),
+                        self.physics._microphysics._graupel.field.copy(),
+                        self.physics._microphysics._snow.field.copy(),
+                        self.physics._microphysics._ice.field.copy(),
                     )
 
             self._end_of_step_actions(step)
