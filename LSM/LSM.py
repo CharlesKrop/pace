@@ -9,6 +9,7 @@ from LSM.extra_parameters.CAPE import compute_cape
 from LSM.extra_parameters.interpolate import interpolate_to_fixed_height
 from LSM.normalize_batch import normalize_lsm_inputs, normalize_batch
 from LSM.extra_parameters.base_state import compute_additional_state
+import random
 
 
 def update_qvapor(stencil_factory: StencilFactory, soil_moisture: np.ndarray, qvapor: Quantity):
@@ -96,7 +97,8 @@ class LSM:
 
         self.soil_moisture = np.full((domain[0], domain[1]), np.nan)
         self.soil_moisture_normalized = np.full((domain[0], domain[1]), np.nan)
-        LSM_inputs = {}
+        self.LSM_inputs = {}
+        era_5_perturbation = 0.05  # numbers can be modified by up to 5% of their original value
         for var in LSM_input_vars:
             batch_size = 1
             past_times = 48
@@ -121,169 +123,268 @@ class LSM:
                                     temperature[time][i, j, :],
                                     dewpoint[time][i, j, :],
                                 )
+                                # array[batch, time, i, j] = random.uniform(
+                                #     self.stats[var].values[2], self.stats[var].values[3]
+                                # )
                             if var == "cp":
-                                array[batch, time, i, j] = (
-                                    input_data.rain[time][i, j, -1]
-                                    + input_data.graupel[time][i, j, -1]
-                                    + input_data.snow[time][i, j, -1]
-                                    + input_data.ice[time][i, j, -1]
+                                # array[batch, time, i, j] = (
+                                #     input_data.rain[time][i, j, -1]
+                                #     + input_data.graupel[time][i, j, -1]
+                                #     + input_data.snow[time][i, j, -1]
+                                #     + input_data.ice[time][i, j, -1]
+                                # )
+                                array[batch, time, i, j] = random.uniform(
+                                    self.stats[var].values[2], self.stats[var].values[3]
                                 )
                             elif var == "cvh":
-                                array[batch, time, i, j] = self.era5_instant["cvh"].values[
-                                    0, lat_index, lon_index
-                                ]
+                                # array[batch, time, i, j] = self.era5_instant["cvh"].values[
+                                #     0, lat_index, lon_index
+                                # ] * (1 + random.uniform(-era_5_perturbation, era_5_perturbation))
+                                array[batch, time, i, j] = random.uniform(
+                                    self.stats[var].values[2], self.stats[var].values[3]
+                                )
                             elif var == "cvl":
-                                array[batch, time, i, j] = self.era5_instant["cvl"].values[
-                                    0, lat_index, lon_index
-                                ]
+                                # array[batch, time, i, j] = self.era5_instant["cvl"].values[
+                                #     0, lat_index, lon_index
+                                # ] * (1 + random.uniform(-era_5_perturbation, era_5_perturbation))
+                                array[batch, time, i, j] = random.uniform(
+                                    self.stats[var].values[2], self.stats[var].values[3]
+                                )
                             elif var == "fal":
-                                array[batch, time, i, j] = self.era5_instant["fal"].values[
-                                    0, lat_index, lon_index
-                                ]
+                                # array[batch, time, i, j] = self.era5_instant["fal"].values[
+                                #     0, lat_index, lon_index
+                                # ] * (1 + random.uniform(-era_5_perturbation, era_5_perturbation))
+                                array[batch, time, i, j] = random.uniform(
+                                    self.stats[var].values[2], self.stats[var].values[3]
+                                )
                             elif var == "lai_hv":
-                                array[batch, time, i, j] = self.era5_instant["lai_hv"].values[
-                                    0, lat_index, lon_index
-                                ]
+                                # array[batch, time, i, j] = self.era5_instant["lai_hv"].values[
+                                #     0, lat_index, lon_index
+                                # ] * (1 + random.uniform(-era_5_perturbation, era_5_perturbation))
+                                array[batch, time, i, j] = random.uniform(
+                                    self.stats[var].values[2], self.stats[var].values[3]
+                                )
                             elif var == "lai_lv":
-                                array[batch, time, i, j] = self.era5_instant["lai_lv"].values[
-                                    0, lat_index, lon_index
-                                ]
+                                # array[batch, time, i, j] = self.era5_instant["lai_lv"].values[
+                                #     0, lat_index, lon_index
+                                # ] * (1 + random.uniform(-era_5_perturbation, era_5_perturbation))
+                                array[batch, time, i, j] = random.uniform(
+                                    self.stats[var].values[2], self.stats[var].values[3]
+                                )
                             elif var == "msdwlwrf":
-                                array[batch, time, i, j] = self.era5_avg["avg_sdlwrf"].values[
-                                    0, lat_index, lon_index
-                                ]
+                                # array[batch, time, i, j] = self.era5_avg["avg_sdlwrf"].values[
+                                #     0, lat_index, lon_index
+                                # ] * (1 + random.uniform(-era_5_perturbation, era_5_perturbation))
+                                array[batch, time, i, j] = random.uniform(
+                                    self.stats[var].values[2], self.stats[var].values[3]
+                                )
                             elif var == "msdwswrf":
-                                array[batch, time, i, j] = self.era5_avg["avg_sdswrf"].values[
-                                    0, lat_index, lon_index
-                                ]
+                                # array[batch, time, i, j] = self.era5_avg["avg_sdswrf"].values[
+                                #     0, lat_index, lon_index
+                                # ] * (1 + random.uniform(-era_5_perturbation, era_5_perturbation))
+                                array[batch, time, i, j] = random.uniform(
+                                    self.stats[var].values[2], self.stats[var].values[3]
+                                )
                             elif var == "pev":
-                                array[batch, time, i, j] = self.era5_accum["pev"].values[
-                                    0, lat_index, lon_index
-                                ]
+                                # array[batch, time, i, j] = self.era5_accum["pev"].values[
+                                #     0, lat_index, lon_index
+                                # ] * (1 + random.uniform(-era_5_perturbation, era_5_perturbation))
+                                array[batch, time, i, j] = random.uniform(
+                                    self.stats[var].values[2], self.stats[var].values[3]
+                                )
                             elif var == "skt":
-                                array[batch, time, i, j] = self.era5_instant["skt"].values[
-                                    0, lat_index, lon_index
-                                ]
+                                # array[batch, time, i, j] = self.era5_instant["skt"].values[
+                                #     0, lat_index, lon_index
+                                # ] * (1 + random.uniform(-era_5_perturbation, era_5_perturbation))
+                                array[batch, time, i, j] = random.uniform(
+                                    self.stats[var].values[2], self.stats[var].values[3]
+                                )
                             elif var == "sp":
                                 array[batch, time, i, j] = input_data.edge_pressure[time][i, j, -1]
+                                # array[batch, time, i, j] = random.uniform(
+                                #     self.stats[var].values[2], self.stats[var].values[3]
+                                # )0[p-=]
                             elif var == "ssr":
-                                array[batch, time, i, j] = self.era5_avg["avg_snswrf"].values[
-                                    0, lat_index, lon_index
-                                ]
+                                # array[batch, time, i, j] = self.era5_avg["avg_snswrf"].values[
+                                #     0, lat_index, lon_index
+                                # ] * (1 + random.uniform(-era_5_perturbation, era_5_perturbation))
+                                array[batch, time, i, j] = random.uniform(
+                                    self.stats[var].values[2], self.stats[var].values[3]
+                                )
                             elif var == "ssrd":
-                                array[batch, time, i, j] = self.era5_accum["ssrd"].values[
-                                    0, lat_index, lon_index
-                                ]
+                                # array[batch, time, i, j] = self.era5_accum["ssrd"].values[
+                                #     0, lat_index, lon_index
+                                # ] * (1 + random.uniform(-era_5_perturbation, era_5_perturbation))
+                                array[batch, time, i, j] = random.uniform(
+                                    self.stats[var].values[2], self.stats[var].values[3]
+                                )
                             elif var == "str":
-                                array[batch, time, i, j] = self.era5_avg["avg_snlwrf"].values[
-                                    0, lat_index, lon_index
-                                ]
+                                # array[batch, time, i, j] = self.era5_avg["avg_snlwrf"].values[
+                                #     0, lat_index, lon_index
+                                # ] * (1 + random.uniform(-era_5_perturbation, era_5_perturbation))
+                                array[batch, time, i, j] = random.uniform(
+                                    self.stats[var].values[2], self.stats[var].values[3]
+                                )
                             elif var == "strd":
-                                array[batch, time, i, j] = self.era5_accum["strd"].values[
-                                    0, lat_index, lon_index
-                                ]
+                                # array[batch, time, i, j] = self.era5_accum["strd"].values[
+                                #     0, lat_index, lon_index
+                                # ] * (1 + random.uniform(-era_5_perturbation, era_5_perturbation))
+                                array[batch, time, i, j] = random.uniform(
+                                    self.stats[var].values[2], self.stats[var].values[3]
+                                )
                             elif var == "stl1":
-                                array[batch, time, i, j] = self.era5_instant["stl1"].values[
-                                    0, lat_index, lon_index
-                                ]
+                                # array[batch, time, i, j] = self.era5_instant["stl1"].values[
+                                #     0, lat_index, lon_index
+                                # ] * (1 + random.uniform(-era_5_perturbation, era_5_perturbation))
+                                array[batch, time, i, j] = random.uniform(
+                                    self.stats[var].values[2], self.stats[var].values[3]
+                                )
                             elif var == "stl2":
-                                array[batch, time, i, j] = self.era5_instant["stl2"].values[
-                                    0, lat_index, lon_index
-                                ]
+                                # array[batch, time, i, j] = self.era5_instant["stl2"].values[
+                                #     0, lat_index, lon_index
+                                # ] * (1 + random.uniform(-era_5_perturbation, era_5_perturbation))
+                                array[batch, time, i, j] = random.uniform(
+                                    self.stats[var].values[2], self.stats[var].values[3]
+                                )
                             elif var == "stl3":
-                                array[batch, time, i, j] = self.era5_instant["stl3"].values[
-                                    0, lat_index, lon_index
-                                ]
+                                # array[batch, time, i, j] = self.era5_instant["stl3"].values[
+                                #     0, lat_index, lon_index
+                                # ] * (1 + random.uniform(-era_5_perturbation, era_5_perturbation))
+                                array[batch, time, i, j] = random.uniform(
+                                    self.stats[var].values[2], self.stats[var].values[3]
+                                )
                             elif var == "stl4":
-                                array[batch, time, i, j] = self.era5_instant["stl4"].values[
-                                    0, lat_index, lon_index
-                                ]
+                                # array[batch, time, i, j] = self.era5_instant["stl4"].values[
+                                #     0, lat_index, lon_index
+                                # ] * (1 + random.uniform(-era_5_perturbation, era_5_perturbation))
+                                array[batch, time, i, j] = random.uniform(
+                                    self.stats[var].values[2], self.stats[var].values[3]
+                                )
                             elif var == "t2m":
                                 # TODO figure out how to normalize to negative geopotential heights
                                 # TODO get real surface data instead of using lowest grid center data
-                                array[batch, time, i, j] = interpolate_to_fixed_height(
-                                    input_data.surface_geopotential[time][i, j],
-                                    input_data.geopotential_height_center[time][i, j, :],
-                                    temperature[time][i, j, :],
-                                    temperature[time][i, j, -1],  # TODO need actual surface data
-                                    2,
+                                # array[batch, time, i, j] = interpolate_to_fixed_height(
+                                #     input_data.surface_geopotential[time][i, j],
+                                #     input_data.geopotential_height_center[time][i, j, :],
+                                #     temperature[time][i, j, :],
+                                #     temperature[time][i, j, -1],  # TODO need actual surface data
+                                #     2,
+                                # )
+                                array[batch, time, i, j] = random.uniform(
+                                    self.stats[var].values[2], self.stats[var].values[3]
                                 )
                             elif var == "d2m":
                                 # TODO figure out how to normalize to negative geopotential heights
                                 # TODO get real surface data instead of using lowest grid center data
-                                array[batch, time, i, j] = interpolate_to_fixed_height(
-                                    input_data.surface_geopotential[time][i, j],
-                                    input_data.geopotential_height_center[time][i, j, :],
-                                    dewpoint[time][i, j, :],
-                                    dewpoint[time][i, j, -1],  # TODO need actual surface data
-                                    2,
+                                # array[batch, time, i, j] = interpolate_to_fixed_height(
+                                #     input_data.surface_geopotential[time][i, j],
+                                #     input_data.geopotential_height_center[time][i, j, :],
+                                #     dewpoint[time][i, j, :],
+                                #     dewpoint[time][i, j, -1],  # TODO need actual surface data
+                                #     2,
+                                # )
+                                array[batch, time, i, j] = random.uniform(
+                                    self.stats[var].values[2], self.stats[var].values[3]
                                 )
                             elif var == "tp":
-                                array[batch, time, i, j] = (
-                                    input_data.rain[time][i, j, -1]
-                                    + input_data.graupel[time][i, j, -1]
-                                    + input_data.snow[time][i, j, -1]
-                                    + input_data.ice[time][i, j, -1]
+                                # array[batch, time, i, j] = (
+                                #     input_data.rain[time][i, j, -1]
+                                #     + input_data.graupel[time][i, j, -1]
+                                #     + input_data.snow[time][i, j, -1]
+                                #     + input_data.ice[time][i, j, -1]
+                                # )
+                                array[batch, time, i, j] = random.uniform(
+                                    self.stats[var].values[2], self.stats[var].values[3]
                                 )
                             elif var == "u10":
                                 # TODO figure out how to normalize to negative geopotential heights
                                 # TODO get real surface data instead of using lowest grid center data
-                                array[batch, time, i, j] = interpolate_to_fixed_height(
-                                    input_data.surface_geopotential[time][i, j],
-                                    input_data.geopotential_height_center[time][i, j, :],
-                                    input_data.u[time][i, j, :],
-                                    input_data.u[time][i, j, -1],  # TODO need actual surface data
-                                    10,
+                                # array[batch, time, i, j] = interpolate_to_fixed_height(
+                                #     input_data.surface_geopotential[time][i, j],
+                                #     input_data.geopotential_height_center[time][i, j, :],
+                                #     input_data.u[time][i, j, :],
+                                #     input_data.u[time][i, j, -1],  # TODO need actual surface data
+                                #     10,
+                                # )
+                                array[batch, time, i, j] = random.uniform(
+                                    self.stats[var].values[2], self.stats[var].values[3]
                                 )
                             elif var == "v10":
                                 # TODO figure out how to normalize to negative geopotential heights
                                 # TODO get real surface data instead of using lowest grid center data
-                                array[batch, time, i, j] = interpolate_to_fixed_height(
-                                    input_data.surface_geopotential[time][i, j],
-                                    input_data.geopotential_height_center[time][i, j, :],
-                                    input_data.v[time][i, j, :],
-                                    input_data.v[time][i, j, -1],  # TODO need actual surface data
-                                    10,
+                                # array[batch, time, i, j] = interpolate_to_fixed_height(
+                                #     input_data.surface_geopotential[time][i, j],
+                                #     input_data.geopotential_height_center[time][i, j, :],
+                                #     input_data.v[time][i, j, :],
+                                #     input_data.v[time][i, j, -1],  # TODO need actual surface data
+                                #     10,
+                                # )
+                                array[batch, time, i, j] = random.uniform(
+                                    self.stats[var].values[2], self.stats[var].values[3]
                                 )
                             elif var == "z":
                                 array[batch, time, i, j] = input_data.surface_geopotential[time][i, j]
+                                # array[batch, time, i, j] = random.uniform(
+                                #     self.stats[var].values[2], self.stats[var].values[3]
+                                # )
                             elif var == "swvl1":
-                                array[batch, time, i, j] = self.era5_instant["swvl1"].values[
-                                    0, lat_index, lon_index
-                                ]
+                                # array[batch, time, i, j] = self.era5_instant["swvl1"].values[
+                                #     0, lat_index, lon_index
+                                # ] * (1 + random.uniform(-era_5_perturbation, era_5_perturbation))
+                                array[batch, time, i, j] = random.uniform(
+                                    self.stats[var].values[2], self.stats[var].values[3]
+                                )
                             elif var == "slhf":
-                                array[batch, time, i, j] = self.era5_accum["slhf"].values[
-                                    0, lat_index, lon_index
-                                ]
+                                # array[batch, time, i, j] = self.era5_accum["slhf"].values[
+                                #     0, lat_index, lon_index
+                                # ] * (1 + random.uniform(-era_5_perturbation, era_5_perturbation))
+                                array[batch, time, i, j] = random.uniform(
+                                    self.stats[var].values[2], self.stats[var].values[3]
+                                )
                             elif var == "e":
-                                array[batch, time, i, j] = self.era5_accum["slhf"].values[
-                                    0, lat_index, lon_index
-                                ]
+                                # array[batch, time, i, j] = self.era5_accum["slhf"].values[
+                                #     0, lat_index, lon_index
+                                # ] * (1 + random.uniform(-era_5_perturbation, era_5_perturbation))
+                                array[batch, time, i, j] = random.uniform(
+                                    self.stats[var].values[2], self.stats[var].values[3]
+                                )
                             elif var == "csfr":
-                                array[batch, time, i, j] = self.era5_instant["csfr"].values[
-                                    0, lat_index, lon_index
-                                ]
+                                # array[batch, time, i, j] = self.era5_instant["csfr"].values[
+                                #     0, lat_index, lon_index
+                                # ] * (1 + random.uniform(-era_5_perturbation, era_5_perturbation))
+                                array[batch, time, i, j] = random.uniform(
+                                    self.stats[var].values[2], self.stats[var].values[3]
+                                )
                             elif var == "es":
-                                array[batch, time, i, j] = self.era5_accum["es"].values[
-                                    0, lat_index, lon_index
-                                ]
+                                # array[batch, time, i, j] = self.era5_accum["es"].values[
+                                #     0, lat_index, lon_index
+                                # ] * (1 + random.uniform(-era_5_perturbation, era_5_perturbation))
+                                array[batch, time, i, j] = random.uniform(
+                                    self.stats[var].values[2], self.stats[var].values[3]
+                                )
                             elif var == "smlt":
-                                array[batch, time, i, j] = self.era5_accum["smlt"].values[
-                                    0, lat_index, lon_index
-                                ]
+                                # array[batch, time, i, j] = self.era5_accum["smlt"].values[
+                                #     0, lat_index, lon_index
+                                # ] * (1 + random.uniform(-era_5_perturbation, era_5_perturbation))
+                                array[batch, time, i, j] = random.uniform(
+                                    self.stats[var].values[2], self.stats[var].values[3]
+                                )
                             elif var == "sd":
-                                array[batch, time, i, j] = self.era5_instant["sd"].values[
-                                    0, lat_index, lon_index
-                                ]
-                LSM_inputs[var] = array
+                                # array[batch, time, i, j] = self.era5_instant["sd"].values[
+                                #     0, lat_index, lon_index
+                                # ] * (1 + random.uniform(-era_5_perturbation, era_5_perturbation))
+                                array[batch, time, i, j] = random.uniform(
+                                    self.stats[var].values[2], self.stats[var].values[3]
+                                )
+                self.LSM_inputs[var] = array
 
         # Normalize data
-        LSM_inputs_normalized = normalize_lsm_inputs(LSM_inputs, self.stats)
+        self.LSM_inputs_normalized = normalize_lsm_inputs(self.LSM_inputs, self.stats)
 
         for i in range(domain[0]):
             for j in range(domain[1]):
                 # Run the model with un-normalized data
-                selected_inputs = {k: v[:, :, i : i + 1, j : j + 1] for k, v in LSM_inputs.items()}
+                selected_inputs = {k: v[:, :, i : i + 1, j : j + 1] for k, v in self.LSM_inputs.items()}
                 print(f"UN-NORMALIZED DATA {selected_inputs['cape'][0, :]}")
                 self.soil_moisture[i, j] = self.sm_model.predict_on_batch(selected_inputs)["soil_moisture"][
                     0
@@ -291,7 +392,7 @@ class LSM:
 
                 # Run the model with normalized data
                 selected_inputs_normalized = {
-                    k: v[:, :, i : i + 1, j : j + 1] for k, v in LSM_inputs_normalized.items()
+                    k: v[:, :, i : i + 1, j : j + 1] for k, v in self.LSM_inputs_normalized.items()
                 }
                 print(f"NORMALIZED DATA {selected_inputs_normalized['cape'][0, :]}")
                 self.soil_moisture_normalized[i, j] = self.sm_model.predict_on_batch(

@@ -712,13 +712,28 @@ class Driver:
                     f"./LSM/debug_data/soil_moisture_normalized_rank{self.comm.Get_rank()}.nc"
                 )
 
+                output_dict = {}
+                output_dict = {
+                    k: (["batch", "timestep", "x", "y"], v) for k, v in self.LSM.LSM_inputs.items()
+                }
+                ds = xr.Dataset(output_dict)
+                ds.to_netcdf(f"./LSM/debug_data/LSM_inputs_rank{self.comm.Get_rank()}.nc")
+
+                output_dict = {}
+                output_dict = {
+                    k: (["batch", "timestep", "x", "y"], v) for k, v in self.LSM.LSM_inputs_normalized.items()
+                }
+                ds = xr.Dataset(output_dict)
+                ds.to_netcdf(f"./LSM/debug_data/LSM_inputs_normalized_rank{self.comm.Get_rank()}.nc")
+
+                # TODO Write SM prediction back into the state object
+
                 output_data = xr.DataArray(self.state.dycore_state.qvapor.field)
                 output_dataset = output_data.to_dataset(name="variable")
                 output_dataset.to_netcdf(
                     f"./LSM/debug_data/qvapor_before_adjustment_rank{self.comm.Get_rank()}.nc"
                 )
 
-                # TODO Write SM prediction back into the state object
                 self.state.dycore_state.qvapor = update_qvapor(
                     self.stencil_factory, self.LSM.soil_moisture_normalized, self.state.dycore_state.qvapor
                 )
