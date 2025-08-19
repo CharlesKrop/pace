@@ -390,6 +390,10 @@ class LSM:
                     0
                 ][0]
 
+                # enforce minimum value of 0.02 to remove negative outputs
+                if self.soil_moisture[i, j] < 0.02:
+                    self.soil_moisture[i, j] = 0.02
+
                 # Run the model with normalized data
                 selected_inputs_normalized = {
                     k: v[:, :, i : i + 1, j : j + 1] for k, v in self.LSM_inputs_normalized.items()
@@ -398,3 +402,7 @@ class LSM:
                 self.soil_moisture_normalized[i, j] = self.sm_model.predict_on_batch(
                     selected_inputs_normalized
                 )["soil_moisture"][0][0]
+
+                # enforce minimum value of 0.02 to remove negative outputs
+                if self.soil_moisture_normalized[i, j] < 0.02:
+                    self.soil_moisture_normalized[i, j] = 0.02
